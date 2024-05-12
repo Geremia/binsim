@@ -45,7 +45,7 @@ void *xor_and_count_bits(void *arg)
 
 	for (uint64_t pos = data->start; pos < data->end; pos += sizeof(uint64_t)) {
 		if (fread(&buffer1, sizeof(uint64_t), 1, file1) == 1 && fread(&buffer2, sizeof(uint64_t), 1, file2) == 1) {
-			uint64_t result = buffer1 ^ buffer2;
+			uint64_t result = ~(buffer1 ^ buffer2);
 			local_count += count_bits(result);
 		}
 	}

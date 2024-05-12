@@ -7,7 +7,7 @@ __global__ void xorKernel(uint64_t *input1, uint64_t *input2, uint64_t *output, 
 {
 	int i = blockDim.x * blockIdx.x + threadIdx.x;
 	if (i < numElements) {
-		output[i] = input1[i] ^ input2[i];
+		output[i] = ~(input1[i] ^ input2[i]);
 	}
 }
 
