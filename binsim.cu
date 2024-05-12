@@ -11,11 +11,11 @@ __global__ void xorKernel(uint64_t *input1, uint64_t *input2, uint64_t *output, 
 	}
 }
 
-__global__ void countBitsKernel(uint64_t *data, int *count, size_t numElements)
+__global__ void countBitsKernel(uint64_t *data, unsigned long long *count, size_t numElements)
 {
 	int index = blockDim.x * blockIdx.x + threadIdx.x;
 	int stride = gridDim.x * blockDim.x;
-	int localCount = 0;
+	unsigned long long localCount = 0;
 
 	for (int i = index; i < numElements; i += stride) {
 		localCount += __popcll(data[i]);	// Counts the number of 1s in data[i]
@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
 	uint64_t *h_input1 = (uint64_t *) malloc(size);
 	uint64_t *h_input2 = (uint64_t *) malloc(size);
 	uint64_t *h_output = (uint64_t *) malloc(size);
-	int h_count = 0;
+	unsigned long long h_count = 0;
 
 	// Read data from files
 	fread(h_input1, sizeof(uint64_t), numElements, f1);
@@ -58,12 +58,12 @@ int main(int argc, char *argv[])
 
 	// Allocate device memory
 	uint64_t *d_input1, *d_input2, *d_output;
-	int *d_count;
+	unsigned long long *d_count;
 	cudaMalloc((void **)&d_input1, size);
 	cudaMalloc((void **)&d_input2, size);
 	cudaMalloc((void **)&d_output, size);
-	cudaMalloc((void **)&d_count, sizeof(int));
-	cudaMemset(d_count, 0, sizeof(int));
+	cudaMalloc((void **)&d_count, sizeof(unsigned long long));
+	cudaMemset(d_count, 0, sizeof(unsigned long long));
 
 	// Copy data from host to device
 	cudaMemcpy(d_input1, h_input1, size, cudaMemcpyHostToDevice);
@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
 	countBitsKernel <<< blocksPerGrid, threadsPerBlock >>> (d_output, d_count, numElements);
 
 	// Copy the result back to host
-	cudaMemcpy(&h_count, d_count, sizeof(int), cudaMemcpyDeviceToHost);
+	cudaMemcpy(&h_count, d_count, sizeof(unsigned long long), cudaMemcpyDeviceToHost);
 
 	printf("Similarity: %f\n", (float)h_count / (fileSize * 8));
 
