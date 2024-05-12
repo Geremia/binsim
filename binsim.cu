@@ -91,4 +91,6 @@ int main(int argc, char *argv[])
 	// Free host memory
 	free(h_input1);
 	free(h_input2);
+
+	return 0;
 }
