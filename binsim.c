@@ -41,13 +41,27 @@ void *xor_and_count_bits(void *arg)
 	fseek(file2, data->start, SEEK_SET);
 
 	uint64_t buffer1, buffer2;
-	unsigned long local_count = 0;
+	uint64_t local_count = 0;
+	uint64_t pos;
 
-	for (uint64_t pos = data->start; pos < data->end; pos += sizeof(uint64_t)) {
-		if (fread(&buffer1, sizeof(uint64_t), 1, file1) == 1 && fread(&buffer2, sizeof(uint64_t), 1, file2) == 1) {
+	// Process full 64-bit blocks
+	for (pos = data->start; pos + BLOCK_SIZE <= data->end; pos += BLOCK_SIZE) {
+		if (fread(&buffer1, BLOCK_SIZE, 1, file1) == 1 && fread(&buffer2, BLOCK_SIZE, 1, file2) == 1) {
 			uint64_t result = ~(buffer1 ^ buffer2);
 			local_count += count_bits(result);
 		}
+	}
+
+	// Process any remaining bytes less than 64 bits
+	if (pos < data->end) {
+		uint64_t remaining_bytes = data->end - pos;
+		uint64_t mask = (1ULL << (remaining_bytes * 8)) - 1;
+		buffer1 = 0;
+		buffer2 = 0;
+		fread(&buffer1, remaining_bytes, 1, file1);
+		fread(&buffer2, remaining_bytes, 1, file2);
+		uint64_t result = ~(buffer1 ^ buffer2) & mask;
+		local_count += count_bits(result);
 	}
 
 	fclose(file1);
@@ -67,8 +81,6 @@ int main(int argc, char *argv[])
 	FILE *file2 = fopen(argv[2], "rb");
 	if (!file1 || !file2) {
 		perror("Failed to open files");
-		fclose(file1);
-		fclose(file2);
 		return 1;
 	}
 
@@ -81,10 +93,16 @@ int main(int argc, char *argv[])
 	fclose(file2);
 
 	int num_threads = sysconf(_SC_NPROCESSORS_ONLN);
+
+	// Adjust the number of threads based on the file size
+	if (fileSize / BLOCK_SIZE < num_threads) {
+		num_threads = fileSize / BLOCK_SIZE > 0 ? fileSize / BLOCK_SIZE : 1;
+	}
+
 	pthread_t threads[num_threads];
 	ThreadData thread_data[num_threads];
 
-	unsigned long total_count = 0;
+	uint64_t total_count = 0;
 	uint64_t chunkSize = fileSize / num_threads;
 
 	for (int i = 0; i < num_threads; i++) {
@@ -92,7 +110,6 @@ int main(int argc, char *argv[])
 		thread_data[i].file2_path = argv[2];
 		thread_data[i].start = i * chunkSize;
 		thread_data[i].end = (i == num_threads - 1) ? fileSize : (i + 1) * chunkSize;
-		thread_data[i].end -= (thread_data[i].end % BLOCK_SIZE);
 
 		pthread_create(&threads[i], NULL, xor_and_count_bits, &thread_data[i]);
 	}
@@ -104,7 +121,7 @@ int main(int argc, char *argv[])
 		total_count += (uint64_t) (uintptr_t) thread_result;
 	}
 
-	printf("Similarity: %lf\n", (double)total_count / (double)(fileSize * BLOCK_SIZE));
+	printf("Similarity: %f\n", (float)total_count / (fileSize * 8));
 
 	return 0;
 }
